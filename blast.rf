@@ -1,0 +1,32 @@
+/* Reflow workflow for B-cell repertoire sequencing pipeline. Developed at Chan
+   Zuckerberg Biohub. Follows Immcantation framework. */
+
+// BLAST reflow workflow
+param (
+	fasta_file string
+	organism_db string
+	run_name string
+	results_bucket string
+)
+
+val files = make("$/files")
+val strings = make("$/strings")
+
+val fasta_file = file(fasta_file)
+val organism_db = dir(organism_db)
+
+func BlastRun(fasta file, organism_db dir) file = 
+	exec(image := "biocontainers/blast") (output file) {"
+		makeblastdb -in {{organism_db}} -db type prot
+		blastp -query {{fasta}} -db {{organism_db}} -out {{output}}
+	"}
+
+
+val blast_res = BlastRun(fasta_file, organism_db)
+val run_name = strings.Join(["blast", run_name], "_")
+val blast_bucket = files.Copy(blast_res, strings.Join(["s3:/", results_bucket, run_name], "/"))
+
+
+@requires(cpu := 8, mem := 32*GiB, disk := 200*GiB)
+val Main = blast_bucket
+
